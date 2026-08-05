@@ -1,7 +1,6 @@
 """
 Módulo de Notificaciones Telegram / Mobile Alerts (tools/telegram_notifier.py).
-Envía alertas push en tiempo real a tu teléfono móvil cuando se abre una Pull Request
-o cuando se detecta un cobro on-chain en la billetera Web3.
+Envía alertas push en tiempo real con enlaces directos e identificación clara de proyectos.
 """
 
 import json
@@ -31,7 +30,8 @@ class TelegramNotifierTool:
         payload = {
             "chat_id": self.chat_id,
             "text": message,
-            "parse_mode": "Markdown"
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": False
         }
 
         try:
@@ -47,4 +47,18 @@ class TelegramNotifierTool:
 def notify_event(title: str, body: str) -> Dict[str, Any]:
     tool = TelegramNotifierTool()
     msg = f"🚀 *Alerta de Entregas & Cobros Web3*\n\n*_{title}_*\n\n{body}"
+    return tool.send_notification(msg)
+
+
+def notify_bounty_event(title: str, reward_usd: float, issue_url: str, pr_url: Optional[str] = None) -> Dict[str, Any]:
+    tool = TelegramNotifierTool()
+    msg = (
+        f"🚀 *NUEVO BOUNTY EN VIVO DETECTADO*\n\n"
+        f"📌 *Proyecto*: `{title[:60]}`\n"
+        f"💰 *Recompensa*: `${reward_usd:,.2f} USDC`\n"
+        f"🔗 *Issue Original*: [Abrir Issue en GitHub]({issue_url})\n"
+    )
+    if pr_url:
+        msg += f"🚀 *Pull Request Oficial*: [Abrir PR en GitHub]({pr_url})\n"
+    msg += f"💳 *Wallet Receptor*: `0x8366bCe3a2D379De7656D7A67015789FaF999f20`"
     return tool.send_notification(msg)

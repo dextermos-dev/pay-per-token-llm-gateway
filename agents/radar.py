@@ -175,6 +175,18 @@ class RadarAgent:
                     valid_candidates.append(bc)
                     seen_urls.add(bc["url"])
 
+        # Registrar evento telemétrico en la Consola en Vivo con Hora Exacta
+        try:
+            from tools.live_monitor import log_live_event
+            log_live_event(
+                event_type="RADAR_SCAN",
+                title="Búsqueda de Oportunidades Web3 en Vivo",
+                details=f"Escaneo de repositorios en GitHub API, Dework y Bountycaster completado. {len(valid_candidates)} bounties validados.",
+                severity="info"
+            )
+        except Exception:
+            pass
+
         return {
             "status": "success",
             "total_real_discovered": len(discovered_candidates) + len(valid_candidates),

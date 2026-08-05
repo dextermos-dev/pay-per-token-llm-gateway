@@ -40,6 +40,23 @@ def log_live_event(event_type: str, title: str, details: str, severity: str = "i
     with open(LOG_FILE, "w", encoding="utf-8") as f:
         json.dump(events, f, indent=2, ensure_ascii=False)
 
+    # 1. Notificación Push a Telegram (Móvil / Desktop)
+    try:
+        from tools.telegram_notifier import notify_event
+        notify_event(f"{event_type} | {title}", details)
+    except Exception:
+        pass
+
+    # 2. Notificación Nativa de Escritorio en macOS (Banner + Sonido)
+    try:
+        import subprocess
+        clean_title = title.replace('"', '\\"').replace("'", "")
+        clean_details = details[:120].replace('"', '\\"').replace("'", "")
+        cmd = f'''osascript -e 'display notification "{clean_details}" with title "{event_type}: {clean_title}" sound name "Glass"' '''
+        subprocess.run(cmd, shell=True, capture_output=True)
+    except Exception:
+        pass
+
 
 def run_monitoring_cycle():
     """Ejecuta una ronda de monitoreo de PRs y wallet."""
