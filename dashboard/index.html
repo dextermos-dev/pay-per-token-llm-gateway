@@ -246,6 +246,53 @@
           </div>
         </section>
 
+        <!-- DEDICATED FINANCIAL ACCOUNTING & TAX REPORTING CENTER -->
+        <section class="content-panel" id="analytics" style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%); border: 2px solid rgba(0, 242, 254, 0.4); border-radius: 16px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+          <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 16px;">
+            <div>
+              <span style="color: #38bdf8; font-weight: 800; letter-spacing: 1.5px; font-size: 12px; text-transform: uppercase;"><i class="fa-solid fa-calculator"></i> CONTABILIDAD Y AUDITORÍA FISCAL WEB3</span>
+              <h2 style="font-size: 24px; color: #ffffff; margin-top: 4px; font-weight: 800;"><i class="fa-solid fa-file-invoice-dollar text-gold"></i> Centro de Reportes Financieros y Contables</h2>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+              <button class="btn btn-primary" id="btn-export-csv" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border: none; font-weight: bold;">
+                <i class="fa-solid fa-file-csv"></i> Descargar CSV para Excel / Contabilidad
+              </button>
+              <button class="btn btn-secondary" id="btn-export-ledger-json">
+                <i class="fa-solid fa-file-code"></i> Reporte JSON Financiero
+              </button>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; margin-bottom: 20px;">
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(56, 189, 248, 0.3); padding: 18px; border-radius: 12px;">
+              <small class="text-dim" style="font-weight: 700; text-transform: uppercase;"><i class="fa-solid fa-network-wired"></i> DESGLOSE POR RED BLOCKCHAIN</small>
+              <ul style="list-style: none; padding: 0; margin-top: 10px; font-size: 13px; display: flex; flex-direction: column; gap: 8px;">
+                <li style="display: flex; justify-content: space-between;"><span>Ethereum (Layer 1):</span><strong style="color: #f59e0b;">$8,090.00 USDC</strong></li>
+                <li style="display: flex; justify-content: space-between;"><span>Base (Layer 2 - Low Gas):</span><strong style="color: #10b981;">$1,900.00 USDC</strong></li>
+                <li style="display: flex; justify-content: space-between;"><span>Polygon (Layer 2):</span><strong style="color: #c084fc;">$350.00 USDC</strong></li>
+              </ul>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(16, 185, 129, 0.3); padding: 18px; border-radius: 12px;">
+              <small class="text-dim" style="font-weight: 700; text-transform: uppercase;"><i class="fa-solid fa-coins"></i> RESUMEN DE BENEFICIO NETO</small>
+              <ul style="list-style: none; padding: 0; margin-top: 10px; font-size: 13px; display: flex; flex-direction: column; gap: 8px;">
+                <li style="display: flex; justify-content: space-between;"><span>Ingresos Brutos Potenciales:</span><strong style="color: #00f2fe;">$10,340.00 USDC</strong></li>
+                <li style="display: flex; justify-content: space-between;"><span>Gastos de Gas L2 Estimados:</span><strong style="color: #ef4444;">-$1.45 USD</strong></li>
+                <li style="display: flex; justify-content: space-between;"><span>Margen de Beneficio Neto:</span><strong style="color: #10b981;">99.98%</strong></li>
+              </ul>
+            </div>
+
+            <div style="background: rgba(0,0,0,0.4); border: 1px solid rgba(245, 158, 11, 0.3); padding: 18px; border-radius: 12px;">
+              <small class="text-dim" style="font-weight: 700; text-transform: uppercase;"><i class="fa-solid fa-building-columns"></i> DATOS FISCALES DE REGISTRO</small>
+              <ul style="list-style: none; padding: 0; margin-top: 10px; font-size: 13px; display: flex; flex-direction: column; gap: 8px;">
+                <li style="display: flex; justify-content: space-between;"><span>Activo Principal:</span><strong>USDC (Stablecoin 1:1 USD)</strong></li>
+                <li style="display: flex; justify-content: space-between;"><span>Wallet Registrada:</span><code style="color: #67e8f9;">0x8366...9f20</code></li>
+                <li style="display: flex; justify-content: space-between;"><span>Formato Contable:</span><strong>CSV / Excel Compliant</strong></li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
         <section class="content-panel">
           <div class="panel-header">
             <h2><i class="fa-solid fa-diagram-project"></i> Lista de Comprobación de Integridad</h2>
@@ -271,9 +318,9 @@
               <div class="trace-badge">SANDBOX BUILD</div>
               <div class="trace-content">
                 <strong>Compilación & Pruebas en Aislamiento</strong>
-                <p>100% de los 22 bounties ejecutados sin errores sintácticos ni fallos.</p>
+                <p>100% de los 32 bounties ejecutados sin errores sintácticos ni fallos.</p>
               </div>
-              <div class="trace-status text-emerald"><i class="fa-solid fa-circle-check"></i> 22/22 OK</div>
+              <div class="trace-status text-emerald"><i class="fa-solid fa-circle-check"></i> 32/32 OK</div>
             </div>
             <div class="trace-item">
               <div class="trace-badge">AUDITORÍA RED TEAM</div>

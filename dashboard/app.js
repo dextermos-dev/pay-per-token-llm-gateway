@@ -320,11 +320,36 @@ function truncateString(str, num) {
   return str.slice(0, num) + "...";
 }
 
+function exportCSV() {
+  const headers = ["ID_Bounty", "Titulo_Proyecto", "Recompensa_USDC", "Red_Blockchain", "Estado_Cobro", "Wallet_Receptora", "Issue_URL", "Pull_Request_URL"];
+  const rows = dashboardDataset.bounties.map(b => [
+    b.bounty_id,
+    `"${(b.title || '').replace(/"/g, '""')}"`,
+    b.reward_amount,
+    b.payment_network || 'Ethereum',
+    b.payout_status || 'EN_REVISION',
+    b.web3_wallet_address || '0x8366bCe3a2D379De7656D7A67015789FaF999f20',
+    b.url || '',
+    b.pull_request_url || ''
+  ]);
+
+  const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `registro_contable_bounties_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 function setupEventListeners() {
   const searchInput = document.getElementById("search-input");
   const filterStatus = document.getElementById("filter-status");
   const btnRefresh = document.getElementById("btn-refresh");
   const btnExport = document.getElementById("btn-export");
+  const btnExportCsv = document.getElementById("btn-export-csv");
+  const btnExportLedgerJson = document.getElementById("btn-export-ledger-json");
   const btnCloseModal = document.getElementById("btn-close-modal");
   const detailModal = document.getElementById("detail-modal");
 
@@ -344,6 +369,8 @@ function setupEventListeners() {
   }
 
   if (btnExport) btnExport.addEventListener("click", exportJSON);
+  if (btnExportCsv) btnExportCsv.addEventListener("click", exportCSV);
+  if (btnExportLedgerJson) btnExportLedgerJson.addEventListener("click", exportJSON);
   if (btnCloseModal) btnCloseModal.addEventListener("click", closeModal);
   if (detailModal) {
     detailModal.addEventListener("click", (e) => {
