@@ -1,0 +1,16 @@
+services:
+  - type: worker
+    name: bounty-hunter-daemon
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python tools/profit_daemon.py
+    autoDeploy: true
+    envVars:
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: WEB3_WALLET_ADDRESS
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
