@@ -131,10 +131,12 @@ function renderKPIs() {
   const kpiEvalCount = document.getElementById("kpi-eval-count");
   const infoboxPrsCount = document.getElementById("infobox-prs-count");
   const infoboxInReviewVal = document.getElementById("infobox-in-review-val");
+  const kpiMonthlyVal = document.getElementById("kpi-monthly-val");
 
-  if (kpiInReview) kpiInReview.innerHTML = `$${formatMoney(in_review_usd || 9540.00)} <small style="font-size: 18px; color: #94a3b8;">USDC</small>`;
-  if (kpiEarnedOnchain) kpiEarnedOnchain.innerHTML = `$${formatMoney(earned_onchain_usd || 0.00)} <small style="font-size: 18px; color: #94a3b8;">USDC</small>`;
-  if (kpiTotalPipeline) kpiTotalPipeline.innerHTML = `$${formatMoney(total_pipeline_value_usd || 10340.00)} <small style="font-size: 18px; color: #94a3b8;">USDC</small>`;
+  if (kpiInReview) kpiInReview.innerHTML = `$${formatMoney(in_review_usd || 9540.00)} <small style="font-size: 16px; color: #94a3b8;">USDC</small>`;
+  if (kpiEarnedOnchain) kpiEarnedOnchain.innerHTML = `$${formatMoney(earned_onchain_usd || 0.00)} <small style="font-size: 16px; color: #94a3b8;">USDC</small>`;
+  if (kpiTotalPipeline) kpiTotalPipeline.innerHTML = `$${formatMoney(total_pipeline_value_usd || 10340.00)} <small style="font-size: 16px; color: #94a3b8;">USDC</small>`;
+  if (kpiMonthlyVal) kpiMonthlyVal.innerHTML = `$${formatMoney(in_review_usd || 9540.00)} <small style="font-size: 16px; color: #94a3b8;">USDC</small>`;
 
   if (diagSubmittedVal) diagSubmittedVal.textContent = `$${formatMoney(in_review_usd || 9540.00)} USDC`;
   if (diagBountiesCount) diagBountiesCount.textContent = `${total_bounties_count} Bounties Registrados`;
