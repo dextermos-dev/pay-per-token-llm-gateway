@@ -14,8 +14,9 @@
 </head>
 <body>
   <div class="app-container">
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
     <!-- Sidebar Navigation -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
       <div class="brand">
         <div class="logo-icon">
           <i class="fa-solid fa-crosshairs"></i>
@@ -24,6 +25,7 @@
           <h2>BOUNTY HUNTER</h2>
           <span class="version-tag">AI ORCHESTRATOR v2.0</span>
         </div>
+        <button class="btn-close-sidebar" id="btn-close-sidebar"><i class="fa-solid fa-xmark"></i></button>
       </div>
 
       <div class="autonomy-badge level-b">
@@ -55,9 +57,14 @@
     <main class="main-content">
       <!-- Top Bar Header -->
       <header class="topbar">
-        <div class="page-title">
-          <h1>Executive Control Dashboard <span class="badge badge-info" style="font-size: 14px;">Nivel Dios</span></h1>
-          <p class="subtitle">Estado real de ganancias, entregas en revisión en GitHub y saldo en billetera MetaMask</p>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <button class="mobile-toggle-btn" id="btn-mobile-toggle" aria-label="Abrir Menú">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="page-title">
+            <h1>Executive Control Dashboard <span class="badge badge-info" style="font-size: 14px;">Nivel Dios</span></h1>
+            <p class="subtitle">Estado real de ganancias, entregas en revisión en GitHub y saldo en billetera MetaMask</p>
+          </div>
         </div>
 
         <div class="topbar-actions">

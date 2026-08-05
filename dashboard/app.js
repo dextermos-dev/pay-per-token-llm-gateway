@@ -89,6 +89,7 @@ async function initDashboard() {
   renderTable(dashboardDataset.bounties);
   initChart(dashboardDataset.bounties);
   setupEventListeners();
+  setupMobileSidebar();
 
   setInterval(async () => {
     await fetchDashboardData();
@@ -519,4 +520,32 @@ function exportJSON() {
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
+}
+
+function setupMobileSidebar() {
+  const btnToggle = document.getElementById("btn-mobile-toggle");
+  const btnClose = document.getElementById("btn-close-sidebar");
+  const sidebar = document.getElementById("sidebar");
+  const overlay = document.getElementById("sidebar-overlay");
+
+  function openSidebar() {
+    if (sidebar) sidebar.classList.add("active");
+    if (overlay) overlay.classList.add("active");
+  }
+
+  function closeSidebar() {
+    if (sidebar) sidebar.classList.remove("active");
+    if (overlay) overlay.classList.remove("active");
+  }
+
+  if (btnToggle) btnToggle.addEventListener("click", openSidebar);
+  if (btnClose) btnClose.addEventListener("click", closeSidebar);
+  if (overlay) overlay.addEventListener("click", closeSidebar);
+
+  const navLinks = document.querySelectorAll(".nav-item");
+  navLinks.forEach(link => {
+    link.addEventListener("click", () => {
+      if (window.innerWidth <= 1024) closeSidebar();
+    });
+  });
 }
