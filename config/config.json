@@ -1,0 +1,50 @@
+{
+  "categorias_permitidas": [
+    "desarrollo",
+    "codigo_abierto",
+    "smart_contracts",
+    "web3",
+    "ia",
+    "automatizacion"
+  ],
+  "tecnologias_dominadas": [
+    "python",
+    "solidity",
+    "typescript",
+    "rust",
+    "ethers_js",
+    "web3_js",
+    "docker"
+  ],
+  "plataformas_prioritarias": [
+    "dework",
+    "bountycaster",
+    "superteam_earn",
+    "gitcoin",
+    "code4rena"
+  ],
+  "plataformas_excluidas": [
+    "fiat_only_platforms",
+    "kyc_mandatory_platforms"
+  ],
+  "recompensa_minima": 100,
+  "recompensa_maxima": 10000,
+  "tiempo_maximo_por_bounty": "72h",
+  "max_bounties_activos": 1,
+  "presupuesto_maximo_por_bounty": 0,
+  "presupuesto_mensual": 0,
+  "fecha_limite_minima": "2026-08-15",
+  "riesgo_maximo": "MEDIO",
+  "nivel_autonomia": "B",
+  "idiomas_busqueda": [
+    "es",
+    "en"
+  ],
+  "monedas_aceptadas": [
+    "USDC",
+    "USDT",
+    "ETH",
+    "MATIC",
+    "DAI"
+  ]
+}

@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Environment Variables & Secrets
+.env
+
+# Outputs
+outputs/matrix/*.json
+!outputs/matrix/.gitkeep
+outputs/viability/*.json
+!outputs/viability/.gitkeep
+outputs/submissions/*.json
+!outputs/submissions/.gitkeep
+outputs/*.json
+
+# System
+.DS_Store

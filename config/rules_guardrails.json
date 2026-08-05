@@ -1,0 +1,110 @@
+{
+  "prohibiciones_absolutas": [
+    "malware",
+    "ransomware",
+    "doxxing",
+    "elusion_de_captchas",
+    "acceso_no_autorizado",
+    "robo_de_datos",
+    "manipulacion_de_votos",
+    "spam"
+  ],
+  "exige_aprobacion_humana": [
+    "enviar_submissions",
+    "realizar_pagos",
+    "aceptar_contratos",
+    "kyc_kyb",
+    "pruebas_sobre_sistemas_reales"
+  ],
+  "secciones_guardrails": {
+    "4.1_fraude_o_manipulacion": [
+      "Presentar trabajo ajeno como propio",
+      "Copiar soluciones de otros participantes",
+      "Crear identidades falsas",
+      "Participar con múltiples identidades cuando esté prohibido",
+      "Manipular votos",
+      "Comprar valoraciones",
+      "Coordinar evaluaciones falsas",
+      "Falsificar resultados o pruebas",
+      "Ocultar errores conocidos",
+      "Prometer funcionalidades inexistentes",
+      "Inventar métricas",
+      "Declarar que una solución funciona sin haberla probado",
+      "Presentar una solución creada antes del periodo permitido cuando esté prohibido"
+    ],
+    "4.2_acceso_y_seguridad": [
+      "Acceder a sistemas sin autorización",
+      "Exceder el alcance de un bug bounty",
+      "Probar activos fuera del scope",
+      "Realizar denegación de servicio",
+      "Usar ingeniería social sin permiso explícito",
+      "Acceder a datos reales de usuarios innecesariamente",
+      "Exfiltrar información",
+      "Mantener persistencia",
+      "Crear malware",
+      "Usar credenciales filtradas",
+      "Vender vulnerabilidades de forma contraria al programa",
+      "Publicar una vulnerabilidad antes de que lo permitan las reglas",
+      "Provocar daños para demostrar un fallo"
+    ],
+    "4.3_propiedad_intelectual": [
+      "Plagiar",
+      "Copiar código incompatible con la licencia",
+      "Utilizar datasets no autorizados",
+      "Usar imágenes sin licencia",
+      "Incluir secretos o código propietario",
+      "Reutilizar entregas confidenciales",
+      "Ignorar obligaciones de atribución",
+      "Presentar contenido generado automáticamente cuando las reglas lo prohíban",
+      "Ocultar el uso de IA cuando deba declararse"
+    ],
+    "4.4_plataformas_y_automatizacion": [
+      "Incumplir términos de servicio",
+      "Eludir captchas",
+      "Crear cuentas automatizadas sin permiso",
+      "Saturar APIs",
+      "Ignorar límites de frecuencia",
+      "Extraer contenido privado",
+      "Continuar después de un bloqueo explícito",
+      "Automatizar submissions masivas",
+      "Enviar propuestas genéricas o spam",
+      "Manipular sistemas de reputación"
+    ],
+    "4.5_finanzas_y_cumplimiento": [
+      "Prometer que un bounty será pagado",
+      "Ocultar obligaciones fiscales",
+      "Evadir KYC o KYB obligatorio",
+      "Utilizar cuentas de terceros",
+      "Falsear residencia",
+      "Ocultar al beneficiario real",
+      "Usar métodos de pago prohibidos",
+      "Interactuar con direcciones sancionadas",
+      "Pagar costes no autorizados",
+      "Aceptar contratos automáticamente",
+      "Ceder derechos sin autorización cuando la cesión sea relevante"
+    ],
+    "4.6_tipos_de_bounty_prohibidos": [
+      "malware",
+      "ransomware",
+      "robo_de_credenciales",
+      "acceso_no_autorizado",
+      "vigilancia_invasiva",
+      "doxxing",
+      "fraude",
+      "manipulacion_politica_encubierta",
+      "desinformacion_organizada",
+      "evasion_de_controles_regulatorios",
+      "explotacion_sexual",
+      "abuso_infantil",
+      "trafico_de_personas",
+      "armas_ilegales",
+      "drogas_ilegales",
+      "blanqueo_de_capitales",
+      "robo_de_datos",
+      "ataques_destructivos",
+      "evasion_fiscal",
+      "suplantacion",
+      "manipulacion_de_mercados"
+    ]
+  }
+}
