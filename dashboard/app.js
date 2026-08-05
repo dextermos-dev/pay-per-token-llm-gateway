@@ -276,9 +276,9 @@ function renderTable(data) {
 
     let payoutBadge = "";
     if (item.pull_request_url) {
-      payoutBadge = `<span style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; padding: 4px 8px; border-radius: 6px; font-weight: 600; font-size: 11px;"><i class="fa-solid fa-spinner fa-spin-pulse"></i> EN REVISIÓN EN GITHUB (PR ABIERTA)</span>`;
+      payoutBadge = `<span style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid #f59e0b; padding: 4px 10px; border-radius: 20px; font-weight: 700; font-size: 11px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-spinner fa-spin-pulse"></i> EN REVISIÓN EN GITHUB</span>`;
     } else {
-      payoutBadge = `<span style="background: rgba(255, 255, 255, 0.05); color: #94a3b8; padding: 4px 8px; border-radius: 6px; font-size: 11px;"><i class="fa-solid fa-box"></i> BORRADOR EN SANDBOX</span>`;
+      payoutBadge = `<span style="background: rgba(255, 255, 255, 0.05); color: #94a3b8; border: 1px solid rgba(255, 255, 255, 0.1); padding: 4px 10px; border-radius: 20px; font-size: 11px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-box"></i> BORRADOR EN SANDBOX</span>`;
     }
 
     // Badge y Tooltip de "NUEVO" para identificar bounties recién rastreados

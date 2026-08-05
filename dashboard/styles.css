@@ -189,10 +189,14 @@ body {
 .main-content {
   margin-left: 280px;
   flex: 1;
-  padding: 32px 40px;
+  width: calc(100% - 280px);
+  max-width: calc(100% - 280px);
+  padding: 28px 36px;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* Topbar */
@@ -200,6 +204,9 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  width: 100%;
 }
 
 .page-title h1 {
@@ -268,6 +275,8 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .diagnostic-status-pill {
@@ -277,6 +286,7 @@ body {
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
@@ -287,7 +297,7 @@ body {
 
 .diagnostic-checks-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 14px;
 }
 
@@ -469,7 +479,10 @@ body {
 
 /* Data Table */
 .table-responsive {
+  width: 100%;
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
 }
 
 .data-table {
@@ -486,13 +499,21 @@ body {
   color: var(--text-muted);
   letter-spacing: 0.8px;
   border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
 }
 
 .data-table td {
-  padding: 16px;
+  padding: 14px 16px;
   font-size: 13px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   vertical-align: middle;
+  white-space: nowrap;
+}
+
+.data-table td:nth-child(2) {
+  white-space: normal;
+  min-width: 220px;
+  max-width: 360px;
 }
 
 .data-table tbody tr {
@@ -516,6 +537,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 
@@ -536,6 +558,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 
@@ -553,6 +576,17 @@ body {
   border-radius: 20px;
   font-size: 11px;
   font-weight: 700;
+  white-space: nowrap;
+}
+
+#live-event-terminal div {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: baseline !important;
+  gap: 6px !important;
+  width: 100% !important;
+  white-space: normal !important;
+  word-break: break-word !important;
 }
 
 .badge-submitted {
