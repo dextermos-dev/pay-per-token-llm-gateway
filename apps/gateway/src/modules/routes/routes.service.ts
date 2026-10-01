@@ -47,9 +47,34 @@ export function buildRoutePathCandidates(requestPath: string): string[] {
 }
 
 /**
- * Map a raw Prisma route row to the typed RouteConfig response.
+ * One route that can serve a request, with the provider it belongs to.
+ *
+ * A separate shape from `RouteConfig` because the balancer needs a fact that is
+ * about the *provider* rather than the route: its weight. That weight is read
+ * from `Provider.metadata.weight`, which the schema already has as free-form
+ * JSON — so this needs no migration, and a provider that says nothing keeps a
+ * weight of 1 and an equal share.
  */
-function toRouteConfig(r: {
+export interface ProviderRouteCandidate {
+  route: RouteConfig;
+  providerId: string;
+  weight: number;
+}
+
+/** Read a provider's balancing weight from its metadata, defaulting to 1. */
+export function weightOf(metadata: unknown): number {
+  if (metadata === null || typeof metadata !== 'object') return 1;
+  const raw = (metadata as Record<string, unknown>).weight;
+  const value = typeof raw === 'string' ? Number(raw) : raw;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return 1;
+  return value;
+}
+
+/**
+ * A route row as Prisma returns it. Named so the shape is stated once, for the
+ * mapper and for the candidate query that also selects the provider.
+ */
+export interface RouteRow {
   id: string;
   providerId: string;
   path: string;
@@ -63,7 +88,12 @@ function toRouteConfig(r: {
   active: boolean;
   createdAt: Date;
   updatedAt: Date;
-}): RouteConfig {
+}
+
+/**
+ * Map a raw Prisma route row to the typed RouteConfig response.
+ */
+function toRouteConfig(r: RouteRow): RouteConfig {
   return {
     id: r.id,
     providerId: r.providerId,
@@ -121,6 +151,40 @@ export class RoutesService {
     if (!r) throw new NotFoundException(`Route ${id} not found`);
 
     return toRouteConfig(r);
+  }
+
+  /**
+   * Every route that can serve this path and model, with the provider state the
+   * load balancer needs to choose between them.
+   *
+   * `Route` is unique on `[providerId, path, model]`, which is the schema saying
+   * one model may be offered by several providers. `findByPathAndModel` returns
+   * only the first of them — correct for a single-provider deployment, and the
+   * reason every request for a model with several providers went to the same one.
+   *
+   * Ordering is deterministic (by provider id) so that the balancer's own
+   * strategy decides, rather than the order the database happened to return.
+   */
+  async findAllByPathAndModel(
+    path: string,
+    model: string,
+  ): Promise<ProviderRouteCandidate[]> {
+    const rows = await prisma.route.findMany({
+      where: {
+        path: { in: buildRoutePathCandidates(path) },
+        model,
+        active: true,
+        provider: { active: true },
+      },
+      include: { provider: { select: { id: true, metadata: true, active: true } } },
+      orderBy: { providerId: 'asc' },
+    });
+
+    return rows.map((r: RouteRow & { provider: { id: string; metadata: unknown } }) => ({
+      route: toRouteConfig(r),
+      providerId: r.provider.id,
+      weight: weightOf(r.provider.metadata),
+    }));
   }
 
   /**

@@ -105,6 +105,9 @@ jest.mock('@x402/database', () => ({
     },
     route: {
       findFirst: jest.fn().mockResolvedValue(null),
+      // This suite configures no routes (`findFirst` is null above) and the
+      // notification flow never resolves one, so the candidate query the
+      // balancer uses answers the same way — empty, rather than inventing one.
       findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn().mockResolvedValue(null),
       create: jest.fn(),
