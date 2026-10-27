@@ -13,6 +13,10 @@ import { ApiTags } from '@nestjs/swagger';
 import { ProxyService } from './proxy.service';
 import { X402Service } from '../x402/x402.service';
 import { RoutesService } from '../routes/routes.service';
+import {
+  LoadBalancerService,
+  type BalancingStrategy,
+} from '../balancer/load-balancer.service';
 import { PaymentsService } from '../payments/payments.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AdminService } from '../admin/admin.service';
@@ -27,7 +31,13 @@ import { getConfig } from '@x402/config';
 import { logger } from '@x402/logger';
 import { generateId } from '@x402/shared';
 import { settleEscrow } from '../x402/escrow-client';
-import type { ChatCompletionRequest, PaymentRecord, Quote, RouteConfig } from '@x402/types';
+import type {
+  ChatCompletionRequest,
+  ChatCompletionResponse,
+  PaymentRecord,
+  Quote,
+  RouteConfig,
+} from '@x402/types';
 
 @ApiTags('proxy')
 @Controller()
@@ -37,6 +47,7 @@ export class ProxyController {
     private readonly proxyService: ProxyService,
     private readonly x402Service: X402Service,
     private readonly routesService: RoutesService,
+    private readonly balancer: LoadBalancerService,
     private readonly paymentsService: PaymentsService,
     private readonly analyticsService: AnalyticsService,
     private readonly adminService: AdminService,
@@ -81,7 +92,7 @@ export class ProxyController {
       // 2. Look up the route for the requested model. Path normalization
       // (stripping the gateway prefix and matching `/v1` conventions) is
       // handled inside RoutesService so the matching logic stays in one place.
-      const route = await this.routesService.findByPathAndModel(req.path, model);
+      const route = await this.selectRoute(req.path, model);
       if (!route) {
         return res.status(404).json({
           status: 404,
@@ -241,6 +252,42 @@ export class ProxyController {
    * Send a 402 Payment Required response.
    * For per-token routes, estimates cost based on request max_tokens.
    */
+  /**
+   * Which provider serves this request.
+   *
+   * `Route` is unique on `[providerId, path, model]`, so one model may be offered
+   * by several providers and the schema has always said so. The lookup here used
+   * to be `findFirst`, which returned whichever provider the database happened to
+   * list first — every request went to the same one, and the second provider
+   * existed only as a row.
+   *
+   * Now every candidate is fetched and the balancer chooses, skipping providers
+   * whose circuit is open. The strategy comes from `LOAD_BALANCING_STRATEGY`
+   * (`round-robin` by default, `least-latency` the other option); an unrecognised
+   * value falls back to round-robin rather than refusing to serve traffic.
+   *
+   * A single unseen provider keeps behaving exactly as before: one candidate, one
+   * answer, no rotation to speak of.
+   */
+  private async selectRoute(path: string, model: string): Promise<RouteConfig | null> {
+    const candidates = await this.routesService.findAllByPathAndModel(path, model);
+    if (candidates.length === 0) return null;
+
+    const configured = process.env.LOAD_BALANCING_STRATEGY;
+    const strategy: BalancingStrategy =
+      configured === 'least-latency' ? 'least-latency' : 'round-robin';
+
+    const chosen = this.balancer.selectRoute(model, candidates, strategy);
+    if (!chosen) {
+      logger.warn('No provider available for model', {
+        model,
+        candidates: candidates.length,
+      });
+      return null;
+    }
+    return chosen.route;
+  }
+
   private async handle402Response(
     res: Response,
     route: RouteConfig,
@@ -672,63 +719,74 @@ export class ProxyController {
       );
     }
 
-    // Pipe upstream SSE stream to client; extract tokens for per-token pricing
-    await this.proxyService.forwardStreamRequest(
-      body,
-      route.upstreamUrl,
-      res,
-      apiKey,
-      traceId,
-      traceparent,
-      async (totalTokens) => {
-        const streamDuration = Date.now() - startTime;
+    // Pipe upstream SSE stream to client; extract tokens for per-token pricing.
+    // The stream's duration is the latency the balancer should see: a stream that
+    // opens instantly and then stalls is slow, and only the duration says so.
+    try {
+      await this.proxyService.forwardStreamRequest(
+        body,
+        route.upstreamUrl,
+        res,
+        apiKey,
+        traceId,
+        traceparent,
+        async (totalTokens) => {
+          this.balancer.record(body.model, route.providerId, {
+            ok: true,
+            latencyMs: Date.now() - startTime,
+          });
+          const streamDuration = Date.now() - startTime;
 
-        // Calculate actual cost for per-token pricing
-        const costResult = await this.applyMeteredPricing(
-          route,
-          payment,
-          totalTokens,
-          res,
-          traceId,
-        );
+          // Calculate actual cost for per-token pricing
+          const costResult = await this.applyMeteredPricing(
+            route,
+            payment,
+            totalTokens,
+            res,
+            traceId,
+          );
 
-        // Send cost/receipt as a trailing SSE event so the SDK can extract
-        // payment info from streaming responses (response headers were
-        // already flushed). The proxy service emits the terminal `[DONE]`
-        // AFTER this callback returns, so the receipt is always delivered
-        // before [DONE] and clients that stop at [DONE] still see it.
-        if (payment) {
-          const receipt = {
-            id: payment.id,
-            quoteId: payment.quoteId,
-            txHash: payment.txHash,
-            payerAddress: payment.payerAddress,
-            amount: payment.amount?.toString(),
-            asset: payment.asset,
-            // The receipt must name the route it paid for (#46) — clients
-            // reconcile the receipt against the endpoint they called.
-            route: route.path,
-            status: payment.status,
-            actualCost: costResult.actualCost,
-            tokensUsed: totalTokens ?? null,
-          };
-          try {
-            res.write(`data: ${JSON.stringify({ x402_receipt: receipt })}\n\n`);
-          } catch {
-            /* client disconnected — stream already ended */
+          // Send cost/receipt as a trailing SSE event so the SDK can extract
+          // payment info from streaming responses (response headers were
+          // already flushed). The proxy service emits the terminal `[DONE]`
+          // AFTER this callback returns, so the receipt is always delivered
+          // before [DONE] and clients that stop at [DONE] still see it.
+          if (payment) {
+            const receipt = {
+              id: payment.id,
+              quoteId: payment.quoteId,
+              txHash: payment.txHash,
+              payerAddress: payment.payerAddress,
+              amount: payment.amount?.toString(),
+              asset: payment.asset,
+              // The receipt must name the route it paid for (#46) — clients
+              // reconcile the receipt against the endpoint they called.
+              route: route.path,
+              status: payment.status,
+              actualCost: costResult.actualCost,
+              tokensUsed: totalTokens ?? null,
+            };
+            try {
+              res.write(`data: ${JSON.stringify({ x402_receipt: receipt })}\n\n`);
+            } catch {
+              /* client disconnected — stream already ended */
+            }
           }
-        }
 
-        await this.analyticsService.recordPaidRequest(
-          route.path,
-          route.providerId,
-          payment?.payerAddress || 'unknown',
-          costResult.actualCost,
-          payment?.asset || 'USDC',
-          streamDuration,
-        );
-      },
-    );
+          await this.analyticsService.recordPaidRequest(
+            route.path,
+            route.providerId,
+            payment?.payerAddress || 'unknown',
+            costResult.actualCost,
+            payment?.asset || 'USDC',
+            streamDuration,
+          );
+        },
+      );
+    } catch (error) {
+      this.balancer.record(body.model, route.providerId, { ok: false });
+      throw error;
+    }
 
     await this.adminService.writeAuditLog({
       action: 'request_forwarded_stream',
@@ -762,13 +820,27 @@ export class ProxyController {
       pricingModel: route.pricingModel,
     });
 
-    const { response, responseTime } = await this.proxyService.forwardRequest(
-      body,
-      route.upstreamUrl,
-      apiKey,
-      traceId,
-      traceparent,
-    );
+    // The balancer is told how this went, on both paths. Without the failure
+    // half the circuit breaker can never open, and without either half
+    // `least-latency` has nothing to compare — the two would be decoration.
+    let forwarded: { response: ChatCompletionResponse; responseTime: number };
+    try {
+      forwarded = await this.proxyService.forwardRequest(
+        body,
+        route.upstreamUrl,
+        apiKey,
+        traceId,
+        traceparent,
+      );
+    } catch (error) {
+      this.balancer.record(body.model, route.providerId, { ok: false });
+      throw error;
+    }
+    const { response, responseTime } = forwarded;
+    this.balancer.record(body.model, route.providerId, {
+      ok: true,
+      latencyMs: responseTime,
+    });
 
     // Calculate actual cost for per-token pricing
     const tokensUsed = response.usage?.total_tokens;

@@ -76,7 +76,23 @@ jest.mock('@x402/database', () => ({
         if (candidates.length > 0 && !candidates.includes(entry.path)) return Promise.resolve(null);
         return Promise.resolve({ ...entry });
       }),
-      findMany: jest.fn().mockResolvedValue([]),
+      findMany: jest.fn().mockImplementation(({ where }: any) => {
+        // The gateway resolves a model through every provider that offers it
+        // (Route is unique on [providerId, path, model]) and lets the load
+        // balancer choose, so this mock answers the same path-aware question
+        // findFirst does — with the provider relation the query includes.
+        const entry = routeRegistry[where?.model];
+        if (!entry || where?.active !== true) {
+          return Promise.resolve([]);
+        }
+        const candidates: string[] = where?.path?.in ?? (where?.path != null ? [where.path] : []);
+        if (candidates.length > 0 && !candidates.includes(entry.path)) {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve([
+          { ...entry, provider: { id: entry.providerId, metadata: null, active: true } },
+        ]);
+      }),
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),

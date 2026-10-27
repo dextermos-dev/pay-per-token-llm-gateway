@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
-import { RoutesService, buildRoutePathCandidates } from './routes.service';
+import { RoutesService, buildRoutePathCandidates, weightOf } from './routes.service';
 import type { RouteConfig } from '@x402/types';
 
 // Mock @x402/database
@@ -268,6 +268,66 @@ describe('RoutesService', () => {
         '/chat/completions',
         '/v1/chat/completions',
       ]);
+    });
+  });
+
+  describe('findAllByPathAndModel', () => {
+    it('returns every provider offering the model, not just the first', async () => {
+      // `Route` is unique on [providerId, path, model]: the schema saying one
+      // model may be served by several providers. The old single-route lookup
+      // returned whichever happened to be first, so every request for a model
+      // with several providers went to the same one.
+      (mockPrisma.route.findMany as jest.Mock).mockResolvedValue([
+        {
+          ...makeRoute({ id: 'route-a', providerId: 'provider-a' }),
+          provider: { id: 'provider-a', metadata: { weight: 70 }, active: true },
+        },
+        {
+          ...makeRoute({ id: 'route-b', providerId: 'provider-b' }),
+          provider: { id: 'provider-b', metadata: { weight: 30 }, active: true },
+        },
+      ]);
+
+      const candidates = await service.findAllByPathAndModel('/api/v1/chat/completions', 'gpt-4');
+
+      expect(candidates).toHaveLength(2);
+      expect(candidates.map((c) => c.providerId)).toEqual(['provider-a', 'provider-b']);
+      expect(candidates.map((c) => c.weight)).toEqual([70, 30]);
+      // Only active routes belonging to active providers.
+      expect(mockPrisma.route.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ model: 'gpt-4', active: true }),
+        }),
+      );
+    });
+
+    it('gives a provider that states no weight an equal share', async () => {
+      (mockPrisma.route.findMany as jest.Mock).mockResolvedValue([
+        {
+          ...makeRoute({ id: 'route-a', providerId: 'provider-a' }),
+          provider: { id: 'provider-a', metadata: null, active: true },
+        },
+      ]);
+
+      const candidates = await service.findAllByPathAndModel('/v1/chat/completions', 'gpt-4');
+
+      expect(candidates[0]?.weight).toBe(1);
+    });
+  });
+
+  describe('weightOf', () => {
+    it.each([
+      [null, 1],
+      [undefined, 1],
+      [{}, 1],
+      [{ weight: 5 }, 5],
+      [{ weight: '5' }, 5],
+      [{ weight: 0 }, 1],
+      [{ weight: -3 }, 1],
+      [{ weight: 'nonsense' }, 1],
+      [{ weight: Number.NaN }, 1],
+    ])('reads %p as %p', (metadata, expected) => {
+      expect(weightOf(metadata)).toBe(expected);
     });
   });
 });

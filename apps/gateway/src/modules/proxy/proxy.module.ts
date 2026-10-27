@@ -3,6 +3,7 @@ import { ProxyController } from './proxy.controller';
 import { ProxyService } from './proxy.service';
 import { X402Module } from '../x402/x402.module';
 import { RoutesModule } from '../routes/routes.module';
+import { BalancerModule } from '../balancer/balancer.module';
 import { ProvidersModule } from '../providers/providers.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
@@ -14,6 +15,7 @@ import { RateLimitGuard } from '../../common/guards/rate-limit.guard';
   imports: [
     X402Module,
     RoutesModule,
+    BalancerModule,
     ProvidersModule,
     PaymentsModule,
     AnalyticsModule,
