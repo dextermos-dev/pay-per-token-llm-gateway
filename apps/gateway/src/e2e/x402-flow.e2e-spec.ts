@@ -189,12 +189,18 @@ jest.mock('@x402/database', () => ({
       count: jest.fn().mockResolvedValue(0),
       updateMany: jest.fn().mockImplementation(({ where, data }: any) => {
         // Mirrors the real single-use claim: only un-consumed rows (txHash
-        // IS NULL) may be updated, and the caller learns whether it won via
-        // the affected-row count.
+        // IS NULL) may be updated, or specific txHash updates for recovery.
         let updated = 0;
         mockPaymentStore = mockPaymentStore.map((p) => {
-          const matches =
-            p.quoteId === where.quoteId && (where.txHash === null || where.txHash === undefined);
+          let matches = false;
+          if (where.quoteId !== undefined) {
+            matches =
+              p.quoteId === where.quoteId && (where.txHash === null || where.txHash === undefined);
+          } else if (where.txHash !== undefined) {
+            matches =
+              p.txHash === where.txHash &&
+              (where.status === undefined || p.status === where.status);
+          }
           if (matches) {
             updated++;
             return { ...p, ...data };
@@ -1789,5 +1795,110 @@ describe('x402 Gateway E2E — Admin Endpoint Security', () => {
 
   it('requires authentication for admin audit logs', async () => {
     await request(app.getHttpServer()).get('/api/v1/admin/audit').expect(401);
+  });
+});
+
+describe('x402 Gateway E2E — Upstream LLM Failure & Recovery', () => {
+  let app: INestApplication;
+
+  beforeAll(async () => {
+    global.fetch = createHorizonAndLLMFetch() as any;
+    const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider('REDIS')
+      .useValue({
+        eval: jest.fn().mockResolvedValue(1),
+        exists: jest.fn().mockResolvedValue(0),
+        set: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn().mockResolvedValue(1),
+        on: jest.fn(),
+        connect: jest.fn(),
+        ping: jest.fn().mockResolvedValue('PONG'),
+      })
+      .overrideProvider('PRISMA')
+      .useValue(mockPrisma)
+      .compile();
+    app = moduleFixture.createNestApplication();
+    app.setGlobalPrefix('api/v1');
+    app.useGlobalFilters(new HttpExceptionFilter());
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    );
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    resetMockStore();
+    jest.clearAllMocks();
+    global.fetch = createHorizonAndLLMFetch() as any;
+  });
+
+  it('preserves payment for free retry when upstream LLM fails with 502, then succeeds on retry', async () => {
+    // 1. Unpaid request gets 402 with quote
+    const res402 = await request(app.getHttpServer())
+      .post('/api/v1/chat/completions')
+      .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Recovery test' }] })
+      .expect(402);
+
+    const quote = res402.body.quote;
+    expect(quote).toBeDefined();
+    expect(quote.id).toBeDefined();
+
+    // 2. Mock upstream LLM to fail with 502
+    const failHash = '8' + 'f'.repeat(63);
+    const standardFetch = createHorizonAndLLMFetch();
+    global.fetch = jest.fn().mockImplementation(async (url: string, opts?: any) => {
+      const u = String(url);
+      if (u.includes('api.mock-llm.example.com')) {
+        return {
+          ok: false,
+          status: 502,
+          statusText: 'Bad Gateway',
+          text: async () => 'Upstream service unavailable',
+          json: async () => ({ error: 'Upstream service unavailable' }),
+        };
+      }
+      return standardFetch(url, opts);
+    });
+
+    const res502 = await request(app.getHttpServer())
+      .post('/api/v1/chat/completions')
+      .set('X-Payment-Hash', failHash)
+      .set('X-Quote-Id', quote.id)
+      .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Recovery test' }] })
+      .expect(502);
+
+    expect(res502.body.retryable).toBe(true);
+    expect(res502.body.txHash).toBe(failHash);
+
+    // Verify payment was marked upstream_failed
+    const paymentRow = mockPaymentStore.find((p) => p.txHash === failHash);
+    expect(paymentRow).toBeDefined();
+    expect(paymentRow?.status).toBe('upstream_failed');
+
+    // 3. Now mock upstream LLM to succeed (200 OK)
+    global.fetch = createHorizonAndLLMFetch() as any;
+
+    const res200 = await request(app.getHttpServer())
+      .post('/api/v1/chat/completions')
+      .set('X-Payment-Hash', failHash)
+      .set('X-Quote-Id', quote.id)
+      .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Recovery test' }] })
+      .expect(200);
+
+    expect(res200.body.id).toBeDefined();
+    const updatedPayment = mockPaymentStore.find((p) => p.txHash === failHash);
+    expect(updatedPayment?.status).toBe('confirmed');
+
+    // 4. A third request with the same hash is rejected (single-use restored)
+    await request(app.getHttpServer())
+      .post('/api/v1/chat/completions')
+      .set('X-Payment-Hash', failHash)
+      .set('X-Quote-Id', quote.id)
+      .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Recovery test' }] })
+      .expect(402);
   });
 });

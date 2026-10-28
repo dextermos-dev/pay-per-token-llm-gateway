@@ -441,6 +441,37 @@ describe('PaymentsService', () => {
         service.recordEscrowSettlement('quote-1', { chargeTxHash: CHARGE_TX }),
       ).resolves.toBeUndefined();
     });
+
+    it('handles undefined settlement gracefully without throwing', async () => {
+      await expect(service.recordEscrowSettlement('quote-1', undefined)).resolves.toBeUndefined();
+      expect(mockPrisma.payment.updateMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('markUpstreamFailure and confirmUpstreamRetry', () => {
+    const TX = 'c'.repeat(64);
+
+    it('marks payment as upstream_failed on upstream LLM error', async () => {
+      (mockPrisma.payment.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      await service.markUpstreamFailure(TX, 'Upstream 502 Bad Gateway');
+
+      expect(mockPrisma.payment.updateMany).toHaveBeenCalledWith({
+        where: { txHash: TX },
+        data: { status: 'upstream_failed' },
+      });
+    });
+
+    it('confirms upstream-failed payment after successful retry', async () => {
+      (mockPrisma.payment.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      await service.confirmUpstreamRetry(TX);
+
+      expect(mockPrisma.payment.updateMany).toHaveBeenCalledWith({
+        where: { txHash: TX, status: 'upstream_failed' },
+        data: expect.objectContaining({ status: 'confirmed' }),
+      });
+    });
   });
 
   describe('recordUnderpaymentDebt', () => {

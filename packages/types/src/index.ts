@@ -25,7 +25,8 @@ export type TxHash = string;
 // ── x402 Protocol Types ──────────────────────
 
 /** Payment status for a request */
-export type PaymentStatus = 'pending' | 'confirmed' | 'failed' | 'refunded' | 'expired';
+export type PaymentStatus =
+  'pending' | 'confirmed' | 'failed' | 'refunded' | 'expired' | 'upstream_failed';
 
 /** Pricing model for a route */
 export type PricingModel = 'flat' | 'per_token';
@@ -48,6 +49,10 @@ export interface Quote {
   paymentAddress: StellarAddress;
   /** Memo required for the payment (if any) */
   memo?: string;
+  /** Whether the on-chain transaction memo must strictly match quote.memo */
+  requireMemo?: boolean;
+  /** Client IP that requested the quote (for caller binding / anti-front-running) */
+  requesterIp?: string;
   /** Unix timestamp when this quote was issued */
   issuedAt: number;
   /** Unix timestamp when this quote expires */

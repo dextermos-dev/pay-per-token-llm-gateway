@@ -357,7 +357,7 @@ x402-llm-gateway/
 
 # Top-level documentation (not under docs/)
 #   README.md · ARCHITECTURE.md · API.md · DEPLOYMENT.md · OPERATIONS.md
-#   OBSERVABILITY.md · SECURITY.md · CONTRIBUTING.md · THREAT-MODEL.md
+#   TESTNET_VERIFICATION.md · OBSERVABILITY.md · SECURITY.md · CONTRIBUTING.md · THREAT-MODEL.md
 #   MAINNET_READINESS.md · AUDIT.md · GAS-OPTIMIZATION.md
 ```
 
@@ -845,6 +845,7 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the complete step-by-step guide.
 
 - [x] Gateway reverse proxy with HTTP 402 flow
 - [x] Flat-rate and per-token pricing models
+- [x] Streaming (SSE) responses with per-token pricing and trailing receipt delivery
 - [x] Stellar payment verification via Horizon
 - [x] Redis-backed replay protection
 - [x] TypeScript Client SDK (402 → pay → retry)
@@ -857,10 +858,9 @@ See [DEPLOYMENT.md](./DEPLOYMENT.md) for the complete step-by-step guide.
 
 ### 🚧 v2 — In Progress
 
-- [x] Streaming (SSE) support with per-token pricing in SDK
+- [x] Multi-provider routing with load balancing
 - [x] Per-token underpayment enforcement (debt gating, top-up quotes, completion cap)
 - [x] Mainnet hardening (boot guards, path-payment restriction, persistent-storage contracts)
-- [ ] Multi-provider routing with load balancing
 - [x] Python SDK with LangChain integration (`python/`)
 - [x] Kubernetes deployment manifests (`infrastructure/kubernetes/`)
 - [x] Provider payout automation via multisig contracts

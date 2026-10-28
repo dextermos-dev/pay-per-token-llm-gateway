@@ -41,18 +41,22 @@ allowBuilds:
 #     affect 3.3.4, patched in 3.3.5 — scoped to the SVGR build chain only
 # See MAINNET_READINESS.md for the residual ledger.
 overrides:
+  next: '>=15.5.28 <16'
+  axios: '>=1.20.0 <2'
+  follow-redirects: '>=1.16.1 <2'
+  proxy-addr: '>=2.0.8 <3'
   koa: '>=2.15.4'
   # NestJS 11 platform-express is built against Express 5 (declares 5.2.1);
   # pinning the override to the 5.x line keeps the whole runtime on one
   # patched Express major instead of silently resolving back to 4.x.
   express: '>=5.2.1'
   ws: '>=8.21.0'
-  body-parser: '>=1.20.6'
+  body-parser: '>=1.20.7 <2'
   qs: '>=6.16.0'
   # uuid <12 keeps the CommonJS build (12+ is ESM-only and would break the
   # CJS NestJS integration); 11.1.1 is the advisory's patched floor.
   uuid: '>=11.1.1 <12'
-  multer: '>=2.3.0'
+  multer: '>=2.5.0 <3'
   # svgo ReDoS (GHSA-w27v-7q3p-w38r, GHSA-4vpr-x523-8j87) patched in 3.3.5;
   # scoped to @svgr/plugin-svgo's ^3 range (a forced 4.x jump would be an
   # unverified API change for the plugin); postcss-svgo keeps its own svgo 4.
@@ -66,12 +70,13 @@ overrides:
   # still ships the CommonJS entry the istanbul/babel chain requires
   # (`dist/js-yaml.cjs.js`), confirmed by `nx test config`.
   js-yaml: '>=4.3.2'
-  # smol-toml: GHSA-7w5x-hrqm-74c2 (DoS via malformed TOML) patched in 1.7.1;
-  # nx's own TOML reader. Build-time tooling only.
-  smol-toml: '>=1.7.1'
+  # smol-toml: GHSA-r4xh-jqrq-34v2 (quadratic-time parsing) patched in 1.9.0
+  smol-toml: '>=1.9.0 <2'
   toml: '>=4.2.0'
   postcss: '>=8.5.23'
   file-type: '>=21.3.2'
+  sharp: '>=0.35.5 <1'
+  source-map-js: '>=1.2.2 <2'
   # Dev/build-tooling advisories with installable patched versions. All are
   # build-time only (webpack/eslint/nx chains) and never shipped to runtime.
   # minimatch: advisory only covers the 9.x line (<9.0.7), so bump it but

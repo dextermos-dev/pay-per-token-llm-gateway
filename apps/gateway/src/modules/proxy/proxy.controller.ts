@@ -13,10 +13,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { ProxyService } from './proxy.service';
 import { X402Service } from '../x402/x402.service';
 import { RoutesService } from '../routes/routes.service';
-import {
-  LoadBalancerService,
-  type BalancingStrategy,
-} from '../balancer/load-balancer.service';
+import { LoadBalancerService, type BalancingStrategy } from '../balancer/load-balancer.service';
 import { PaymentsService } from '../payments/payments.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { AdminService } from '../admin/admin.service';
@@ -74,6 +71,7 @@ export class ProxyController {
     const traceContext = (req as TraceRequest).traceContext;
     const traceId = traceContext?.traceId ?? generateId();
     const startTime = Date.now();
+    let txHash: string | undefined;
 
     try {
       // 1. Validate request
@@ -103,10 +101,12 @@ export class ProxyController {
 
       // 3. Check for payment headers.
       //    - X-Payment-Hash: a 64-char hex Horizon transaction hash (per-request payment)
+      //    - X-Quote-Id: optional quote UUID for explicit quote binding and anti-front-running
       //    - X-Escrow-User: a Stellar address that has prepaid credit in the
       //      credit-escrow contract. When the balance covers the quote amount,
       //      Horizon payment verification is skipped.
-      const txHash = req.headers['x-payment-hash'] as string | undefined;
+      txHash = req.headers['x-payment-hash'] as string | undefined;
+      const quoteIdHeader = req.headers['x-quote-id'] as string | undefined;
       const escrowUser = req.headers['x-escrow-user'] as string | undefined;
 
       if (txHash !== undefined) {
@@ -124,7 +124,7 @@ export class ProxyController {
           model,
           pricingModel: route.pricingModel,
         });
-        await this.handle402Response(res, route, traceId, model, body);
+        await this.handle402Response(res, route, traceId, model, body, req.ip);
         quoteSpan.end({ model, route: route.path });
         return;
       }
@@ -138,7 +138,14 @@ export class ProxyController {
       if (escrowUser) {
         payment = await this.verifyAndConfirmEscrowPayment(escrowUser, route, res, traceId, body);
       } else if (txHash) {
-        const verified = await this.verifyAndConfirmPayment(txHash, route, res, traceId);
+        const verified = await this.verifyAndConfirmPayment(
+          txHash,
+          route,
+          res,
+          traceId,
+          quoteIdHeader,
+          req.ip,
+        );
         if (verified) {
           payment = await this.paymentsService.findByTxHash(txHash);
         }
@@ -196,6 +203,13 @@ export class ProxyController {
     } catch (error) {
       logger.error('Proxy error', { traceId, error: String(error) });
 
+      // If the caller paid and the upstream LLM failed (502, network, timeout),
+      // preserve their payment for a free retry rather than burning their funds!
+      if (txHash) {
+        await this.paymentsService.markUpstreamFailure(txHash, String(error));
+        await this.x402Service.releasePaymentHash(txHash);
+      }
+
       if (error instanceof BadRequestException) {
         return res.status(400).json({
           status: 400,
@@ -207,7 +221,10 @@ export class ProxyController {
       return res.status(502).json({
         status: 502,
         error: 'Bad Gateway',
-        message: 'Upstream LLM request failed',
+        message:
+          'Upstream LLM request failed. Your payment has been preserved for retry with the same transaction hash.',
+        retryable: true,
+        txHash,
       });
     }
   }
@@ -294,17 +311,18 @@ export class ProxyController {
     traceId: string,
     model: string,
     body: ChatCompletionRequest,
+    requesterIp?: string,
   ) {
-    logger.info('402: Payment required', { traceId, model });
+    logger.info('402: Payment required', { traceId, model, requesterIp });
 
     // For per-token pricing, estimate from the request's max_tokens
     const estimatedTokens =
       route.pricingModel === 'per_token' ? body.max_tokens || undefined : undefined;
 
-    const quote = await this.x402Service.generateQuoteForRoute(route, estimatedTokens);
+    const quote = await this.x402Service.generateQuoteForRoute(route, estimatedTokens, requesterIp);
     const payment402 = await this.x402Service.build402Response(quote);
 
-    await this.paymentsService.createPendingPayment(quote, route);
+    await this.paymentsService.createPendingPayment(quote, route, requesterIp);
     await this.analyticsService.recordUnpaidRequest(route.path, route.providerId);
 
     await this.adminService.writeAuditLog({
@@ -334,10 +352,35 @@ export class ProxyController {
     route: RouteConfig,
     res: Response,
     traceId: string,
+    quoteIdHeader?: string,
+    clientIp?: string,
   ): Promise<boolean> {
-    logger.info('Verifying payment', { traceId, txHash });
+    logger.info('Verifying payment', { traceId, txHash, quoteIdHeader, clientIp });
 
     let existingPayment = await this.paymentsService.findByTxHash(txHash);
+
+    // UPSTREAM FAILURE RECOVERY: If this payment previously failed due to an
+    // upstream LLM error (502, network, timeout), grant a free retry on the
+    // existing payment rather than treating it as a replay.
+    if (existingPayment?.status === 'upstream_failed') {
+      const storedQuote = existingPayment.receiptJson
+        ? (existingPayment.receiptJson as Quote)
+        : null;
+      if (storedQuote && this.x402Service.isQuoteExpired(storedQuote)) {
+        res.status(402).json({
+          status: 402,
+          error: 'Payment Required',
+          message: 'The payment quote has expired. Please request a new quote and pay again.',
+        });
+        return false;
+      }
+      logger.info('Allowing free retry for payment whose upstream previously failed', {
+        traceId,
+        txHash,
+        quoteId: existingPayment.quoteId,
+      });
+      return true;
+    }
 
     // SECURITY — single-use invariant. A confirmed payment row means this
     // txHash has already been consumed; it must never grant access a second
@@ -379,14 +422,21 @@ export class ProxyController {
 
     // First-time payment: no row carries this hash yet — the quote's own row
     // is still pending with `txHash = NULL`, so the lookup above misses it.
-    // Resolve that quote from the transaction's on-chain memo, which is derived
-    // deterministically from the quote id. Without this, verification would
-    // mint a *new* quote at retry time and reject the (older, valid) payment
-    // with "Payment was made before the quote was issued". Best-effort: when
-    // the client paid without a memo, or no pending quote on this route
-    // matches, we fall through to the previous behavior — and the fresh
-    // quote's `issuedAt` lower bound still rejects historical payments, so an
-    // unresolved payment can never grant access.
+    // 1. Resolve from client-supplied X-Quote-Id header if present.
+    if (!existingPayment && quoteIdHeader) {
+      const byQuote = await this.paymentsService.findByQuoteId(quoteIdHeader);
+      if (byQuote && byQuote.routeId === route.id && byQuote.status === 'pending') {
+        existingPayment = byQuote;
+        logger.info('Resolved payment to its originating quote via X-Quote-Id', {
+          traceId,
+          txHash,
+          quoteId: quoteIdHeader,
+        });
+      }
+    }
+
+    // 2. Resolve that quote from the transaction's on-chain memo, which is derived
+    // deterministically from the quote id.
     if (!existingPayment) {
       const memo = await this.x402Service.fetchTransactionMemo(txHash);
       if (memo) {
@@ -399,6 +449,25 @@ export class ProxyController {
           });
         }
       }
+    }
+
+    // Anti-frontrunning / caller-binding check:
+    // If the pending quote recorded the requester's IP, verify that the retry
+    // comes from the same IP (or carried the secret X-Quote-Id).
+    const storedRequesterIp = (existingPayment?.receiptJson as any)?.requesterIp;
+    if (storedRequesterIp && clientIp && storedRequesterIp !== clientIp && !quoteIdHeader) {
+      logger.warn('Payment quote was requested from different IP without quote proof', {
+        traceId,
+        txHash,
+        storedRequesterIp,
+        clientIp,
+      });
+      res.status(403).json({
+        status: 403,
+        error: 'Forbidden',
+        message: 'This payment was bound to a quote requested by a different client.',
+      });
+      return false;
     }
 
     // Use the original quote from the pending payment, or generate a new one.
@@ -427,7 +496,7 @@ export class ProxyController {
     // If no stored quote exists, generate one for verification.
     // (This handles the case where a payment arrives without a prior 402 quote.)
     const quoteForVerification =
-      storedQuote ?? (await this.x402Service.generateQuoteForRoute(route));
+      storedQuote ?? (await this.x402Service.generateQuoteForRoute(route, undefined, clientIp));
 
     const verification = await this.x402Service.verifyPayment(txHash, quoteForVerification);
 
@@ -788,6 +857,10 @@ export class ProxyController {
       throw error;
     }
 
+    if (payment?.txHash && payment.status === 'upstream_failed') {
+      await this.paymentsService.confirmUpstreamRetry(payment.txHash);
+    }
+
     await this.adminService.writeAuditLog({
       action: 'request_forwarded_stream',
       entity: 'request',
@@ -835,6 +908,10 @@ export class ProxyController {
     } catch (error) {
       this.balancer.record(body.model, route.providerId, { ok: false });
       throw error;
+    }
+
+    if (payment?.txHash && payment.status === 'upstream_failed') {
+      await this.paymentsService.confirmUpstreamRetry(payment.txHash);
     }
     const { response, responseTime } = forwarded;
     this.balancer.record(body.model, route.providerId, {

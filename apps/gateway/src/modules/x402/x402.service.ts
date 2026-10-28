@@ -30,7 +30,11 @@ export class X402Service {
   /**
    * Generate a quote for a given route.
    */
-  async generateQuoteForRoute(route: RouteConfig, estimatedTokens?: number): Promise<Quote> {
+  async generateQuoteForRoute(
+    route: RouteConfig,
+    estimatedTokens?: number,
+    requesterIp?: string,
+  ): Promise<Quote> {
     const config = getConfig();
 
     // Look up the provider's wallet address from the database
@@ -50,6 +54,7 @@ export class X402Service {
       usdcIssuer: config.payment.usdcIssuer,
       minPaymentAmount: config.payment.minPaymentAmount,
       estimatedTokens,
+      requesterIp,
     });
 
     this.metrics.safe(() =>
@@ -288,6 +293,13 @@ export class X402Service {
    */
   generateReceipt(verification: PaymentVerification, quote: Quote): PaymentReceipt {
     return generateReceipt(verification, quote);
+  }
+
+  /**
+   * Release an earlier claim on a transaction hash (e.g. when upstream fails and retry is permitted).
+   */
+  async releasePaymentHash(txHash: string): Promise<void> {
+    await this.replayProtection.release(txHash);
   }
 
   /**

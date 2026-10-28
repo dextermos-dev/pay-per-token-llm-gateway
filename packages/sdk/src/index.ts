@@ -189,6 +189,7 @@ export class X402Client {
       headers: {
         'Content-Type': 'application/json',
         'X-Payment-Hash': txHashResult.txHash!,
+        'X-Quote-Id': quote.id,
         ...options?.headers,
       },
       body: JSON.stringify(request),

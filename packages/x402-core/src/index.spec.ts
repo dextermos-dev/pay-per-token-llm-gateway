@@ -354,4 +354,31 @@ describe('ReplayProtection', () => {
     await expect(rp.claim(txHash, 60)).resolves.toBe(false);
     await expect(rp.isUsed(txHash)).resolves.toBe(true);
   });
+
+  it('releases an in-memory claim so it can be re-claimed (retry path)', async () => {
+    const rp = new ReplayProtection();
+    const txHash = 'e1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e3';
+
+    await expect(rp.claim(txHash, 60)).resolves.toBe(true);
+    await expect(rp.claim(txHash, 60)).resolves.toBe(false);
+
+    await rp.release(txHash);
+    await expect(rp.isUsed(txHash)).resolves.toBe(false);
+    await expect(rp.claim(txHash, 60)).resolves.toBe(true);
+  });
+
+  it('releases a Redis claim by deleting the key', async () => {
+    const mockRedis: RedisLike = {
+      get: jest.fn(),
+      set: jest.fn(),
+      del: jest.fn().mockResolvedValue(1),
+      exists: jest.fn(),
+    };
+
+    const txHash = 'f1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e4';
+    const rp = new ReplayProtection(mockRedis);
+
+    await rp.release(txHash);
+    expect(mockRedis.del).toHaveBeenCalledWith('x402:replay:' + txHash);
+  });
 });

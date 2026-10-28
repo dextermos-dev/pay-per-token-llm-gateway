@@ -376,9 +376,45 @@ describe('verifyStellarPayment', () => {
     });
   });
 
-  // Note: memo attribution is intentionally NOT enforced by the verifier —
-  // the gateway retry flow verifies against a fresh quote, so requiring the
-  // tx memo to match would reject every valid payment. See verifyStellarPayment.
+  describe('quote memo binding', () => {
+    it('accepts a transaction whose text memo matches the quote memo', async () => {
+      const quote = { ...makeQuote(makeRoute()), requireMemo: true };
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({ memo_type: 'text', memo: quote.memo }, quote),
+        ops: opsData([paymentOp({ amount: '0.1000000' })]),
+      });
+
+      const result = await verify({ quote });
+
+      expect(result.verified).toBe(true);
+    });
+
+    it('rejects a transaction whose text memo does not match the quote memo', async () => {
+      const quote = { ...makeQuote(makeRoute()), requireMemo: true };
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({ memo_type: 'text', memo: 'wrong-memo-123456789012' }, quote),
+        ops: opsData([paymentOp({ amount: '0.1000000' })]),
+      });
+
+      const result = await verify({ quote });
+
+      expect(result.verified).toBe(false);
+      expect(result.failureReason).toContain('Transaction memo does not match quote');
+    });
+
+    it('rejects a transaction with no memo when the quote expects one', async () => {
+      const quote = { ...makeQuote(makeRoute()), requireMemo: true };
+      (global as any).fetch = mockHorizonFetch({
+        tx: txData({ memo_type: 'none', memo: null }),
+        ops: opsData([paymentOp({ amount: '0.1000000' })]),
+      });
+
+      const result = await verify({ quote });
+
+      expect(result.verified).toBe(false);
+      expect(result.failureReason).toContain('Transaction memo does not match quote');
+    });
+  });
 
   describe('flat-rate pricing', () => {
     it('verifies a flat-rate payment with an exact amount match (Horizon decimal units)', async () => {

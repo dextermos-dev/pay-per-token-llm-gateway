@@ -30,7 +30,12 @@ export class PaymentsService {
   /**
    * Create a pending payment record when a quote is generated.
    */
-  async createPendingPayment(quote: Quote, route: RouteConfig): Promise<void> {
+  async createPendingPayment(
+    quote: Quote,
+    route: RouteConfig,
+    requesterIp?: string,
+  ): Promise<void> {
+    const quoteWithCaller = requesterIp ? { ...quote, requesterIp } : quote;
     await prisma.payment.create({
       data: {
         quoteId: quote.id,
@@ -42,11 +47,40 @@ export class PaymentsService {
         asset: quote.asset,
         status: 'pending',
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        receiptJson: quote as any,
+        receiptJson: quoteWithCaller as any,
       },
     });
 
-    logger.info('Pending payment created', { quoteId: quote.id });
+    logger.info('Pending payment created', { quoteId: quote.id, requesterIp });
+  }
+
+  /**
+   * Mark a payment as failed due to upstream LLM failure (e.g. 502, network error).
+   * This preserves the payment for a free retry on the same quote/txHash, rather
+   * than permanently burning the caller's funds as an unretryable replay.
+   */
+  async markUpstreamFailure(txHash: string, errorReason: string): Promise<void> {
+    await prisma.payment.updateMany({
+      where: { txHash },
+      data: {
+        status: 'upstream_failed',
+      },
+    });
+    logger.warn('Payment marked as upstream_failed for free retry', { txHash, errorReason });
+  }
+
+  /**
+   * Confirm an earlier upstream-failed payment after a successful retry.
+   */
+  async confirmUpstreamRetry(txHash: string): Promise<void> {
+    await prisma.payment.updateMany({
+      where: { txHash, status: 'upstream_failed' },
+      data: {
+        status: 'confirmed',
+        updatedAt: new Date(),
+      },
+    });
+    logger.info('Payment confirmed after successful upstream retry', { txHash });
   }
 
   /**
@@ -286,8 +320,9 @@ export class PaymentsService {
    */
   async recordEscrowSettlement(
     quoteId: string,
-    settlement: { chargeTxHash?: string; refundTxHash?: string },
+    settlement?: { chargeTxHash?: string; refundTxHash?: string },
   ): Promise<void> {
+    if (!settlement) return;
     const data: { settlementTxHash?: string; refundTxHash?: string } = {};
     if (settlement.chargeTxHash) data.settlementTxHash = settlement.chargeTxHash;
     if (settlement.refundTxHash) data.refundTxHash = settlement.refundTxHash;

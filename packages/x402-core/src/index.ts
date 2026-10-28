@@ -29,6 +29,8 @@ export interface QuoteGeneratorOptions {
   minPaymentAmount?: string;
   /** Estimated max tokens for per-token pricing (from request max_tokens) */
   estimatedTokens?: number;
+  /** Client IP requesting the quote, to bind payment to caller */
+  requesterIp?: string;
 }
 
 /** Default token estimate when max_tokens is not specified */
@@ -128,6 +130,7 @@ export function generateQuote(options: QuoteGeneratorOptions): Quote {
     statusUrl: `${options.gatewayBaseUrl}/api/v1/payments/${quoteId}/status`,
     estimatedMaxTokens,
     perTokenPrice,
+    requesterIp: options.requesterIp,
   };
 }
 
@@ -246,12 +249,25 @@ export async function verifyStellarPayment(
 
     const txData = (await response.json()) as Record<string, any>;
 
-    // NOTE: quote memos are issued for on-chain attribution (the client pays
-    // with the memo, so payments are traceable to their quote), but they are
-    // NOT enforced here. The gateway's retry flow (402 → pay → X-Payment-Hash)
-    // verifies against a freshly generated quote, so a hard memo requirement
-    // would never match and would reject every valid payment. Replay
-    // protection (Redis + on-chain + DB single-use) is the access control.
+    // Enforce quote memo matching when quote.requireMemo is explicitly set.
+    // By default, quote memos are used for attribution and quote resolution, but not hard-gated
+    // so clients paying without memo or during fallback retry flows are not broken.
+    if (quote.requireMemo && quote.memo) {
+      const txMemo =
+        txData.memo_type === 'text' && typeof txData.memo === 'string' ? txData.memo : null;
+      if (!txMemo || txMemo !== quote.memo) {
+        return {
+          verified: false,
+          txHash,
+          payerAddress: txData.source_account || '',
+          amount: '0',
+          asset: quote.asset,
+          ledger: txData.ledger || 0,
+          timestamp: Date.parse(txData.created_at) / 1000 || 0,
+          failureReason: `Transaction memo does not match quote (expected ${quote.memo}, got ${txMemo || 'none'})`,
+        };
+      }
+    }
 
     // Check transaction succeeded
     if (!txData.successful) {
@@ -591,6 +607,24 @@ export class ReplayProtection {
         this.expiryTimers.delete(txHash);
       }, ttlSeconds * 1000),
     );
+  }
+
+  /**
+   * Release an earlier claim on a transaction hash (e.g. when upstream LLM fails
+   * and retry on the same quote is permitted).
+   */
+  async release(txHash: TxHash): Promise<void> {
+    if (this.redis) {
+      await this.redis.del(ReplayProtection.KEY_PREFIX + txHash);
+      return;
+    }
+
+    this.usedPayments.delete(txHash);
+    const existing = this.expiryTimers.get(txHash);
+    if (existing) {
+      clearTimeout(existing);
+      this.expiryTimers.delete(txHash);
+    }
   }
 
   /**
