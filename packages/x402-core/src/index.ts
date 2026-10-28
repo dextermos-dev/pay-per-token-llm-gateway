@@ -615,7 +615,13 @@ export class ReplayProtection {
    */
   async release(txHash: TxHash): Promise<void> {
     if (this.redis) {
-      await this.redis.del(ReplayProtection.KEY_PREFIX + txHash);
+      if (typeof this.redis.del === 'function') {
+        try {
+          await this.redis.del(ReplayProtection.KEY_PREFIX + txHash);
+        } catch {
+          // ignore redis connection errors during best-effort release
+        }
+      }
       return;
     }
 

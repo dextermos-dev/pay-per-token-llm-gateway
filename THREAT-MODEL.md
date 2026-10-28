@@ -3,7 +3,7 @@
 > Threat model for the x402 LLM Gateway (Soroban contracts + NestJS gateway +
 > Next.js dashboard + TypeScript SDK). Companion to [`SECURITY.md`](./SECURITY.md)
 > (policy + residual risks) and [`AUDIT.md`](./AUDIT.md) (findings ledger).
-> Last updated: **2026-09-08**.
+> Last updated: **2026-10-28**.
 
 ## 1. Assets
 
@@ -72,6 +72,8 @@
 | P9  | **Old payment used across quotes after Redis TTL expiry**                                        | Free access                                                                              | Wait for Redis claim TTL (1h) to expire, reuse hash on a new quote | On-chain `USED_TX` replay guard is permanent; DB single-use row is permanent                                                                                                                                 | ✅ mitigated                      |
 | P10 | **Debt-gate bypass** via provider hopping                                                        | Debt never collected                                                                     | Payer with debt on provider A uses provider B                      | Debt is per (payer, provider) by design — cross-provider debt is out of scope; documented                                                                                                                    | ⚠️ accepted (documented)          |
 | P11 | **Escrow double-charge / double-refund**                                                         | User funds stolen                                                                        | Replay `charge`/`refund` calls                                     | Per-(user, quote_id) idempotency guards in `credit-escrow`; tested                                                                                                                                           | ✅ mitigated (opt-in v2)          |
+| P12 | **Concurrent submission race condition** of the same payment                                     | Duplicate service consumption or state corruption                                        | Two simultaneous requests with same `X-Payment-Hash`               | Redis atomic `SET NX` + PostgreSQL `updateMany({ where: { quoteId, txHash: null } })` + partial unique constraint on `Payment.txHash`. Loser receives 402 with replay error.                                 | ✅ mitigated + tested             |
+| P13 | **Propagating / unindexed tx false replay lockout**                                              | Legitimate payment rejected on retry                                                     | Request arrives before Horizon closes ledger, followed by retry    | Gateway verification releases Redis reservation when `verified: false` (or Horizon times out), allowing subsequent retry upon ledger close without false replay lockout.                                     | ✅ mitigated + tested             |
 
 ### 3.2 Gateway & infrastructure
 

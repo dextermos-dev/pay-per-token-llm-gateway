@@ -126,53 +126,63 @@ export class X402Service {
     }
 
     // Layer 2: On-chain verification via Horizon
-    const verification = await verifyStellarPayment({
-      txHash,
-      quote,
-      horizonUrl: config.stellar.horizonUrl,
-      sorobanRpcUrl: config.stellar.sorobanRpcUrl,
-      networkPassphrase: config.stellar.networkPassphrase,
-      minPaymentAmount: config.payment.minPaymentAmount,
-      timeoutMs: config.stellar.horizonTimeoutMs,
-      // Mainnet verifies direct USDC `payment` operations only. Path
-      // payments (strict send/receive) are accepted on test networks where
-      // they help clients without a USDC trustline, but on mainnet they widen
-      // the surface for exotic-asset tricks and add nothing — the configured
-      // USDC issuer is the only asset that should ever satisfy a quote.
-      allowPathPayments: config.stellar.network !== 'mainnet',
-    });
+    try {
+      const verification = await verifyStellarPayment({
+        txHash,
+        quote,
+        horizonUrl: config.stellar.horizonUrl,
+        sorobanRpcUrl: config.stellar.sorobanRpcUrl,
+        networkPassphrase: config.stellar.networkPassphrase,
+        minPaymentAmount: config.payment.minPaymentAmount,
+        timeoutMs: config.stellar.horizonTimeoutMs,
+        // Mainnet verifies direct USDC `payment` operations only. Path
+        // payments (strict send/receive) are accepted on test networks where
+        // they help clients without a USDC trustline, but on mainnet they widen
+        // the surface for exotic-asset tricks and add nothing — the configured
+        // USDC issuer is the only asset that should ever satisfy a quote.
+        allowPathPayments: config.stellar.network !== 'mainnet',
+      });
 
-    if (verification.verified) {
-      this.metrics.safe(() => this.metrics.paymentsVerified.inc({ asset: verification.asset }));
+      if (verification.verified) {
+        this.metrics.safe(() => this.metrics.paymentsVerified.inc({ asset: verification.asset }));
 
-      // Best-effort on-chain audit trail: record the verified payment on the
-      // payment-verifier contract so replay protection and the immutable
-      // audit trail survive Redis loss and work across gateway instances.
-      if (config.payment.contractAdminSecret) {
-        await recordPaymentOnChain({
-          contractId: config.contracts.paymentVerifier,
-          rpcUrl: config.stellar.sorobanRpcUrl,
-          networkPassphrase: config.stellar.networkPassphrase,
-          timeoutSeconds: Math.ceil(config.stellar.sorobanRpcTimeoutMs / 1000),
-          adminSecret: config.payment.contractAdminSecret,
-          txHash,
-          payer: verification.payerAddress,
-          payee: quote.paymentAddress,
-          amount: verification.amount,
-          asset: verification.asset,
-          timestamp: verification.timestamp,
-          quoteId: quote.id,
-        });
+        // Best-effort on-chain audit trail: record the verified payment on the
+        // payment-verifier contract so replay protection and the immutable
+        // audit trail survive Redis loss and work across gateway instances.
+        if (config.payment.contractAdminSecret) {
+          await recordPaymentOnChain({
+            contractId: config.contracts.paymentVerifier,
+            rpcUrl: config.stellar.sorobanRpcUrl,
+            networkPassphrase: config.stellar.networkPassphrase,
+            timeoutSeconds: Math.ceil(config.stellar.sorobanRpcTimeoutMs / 1000),
+            adminSecret: config.payment.contractAdminSecret,
+            txHash,
+            payer: verification.payerAddress,
+            payee: quote.paymentAddress,
+            amount: verification.amount,
+            asset: verification.asset,
+            timestamp: verification.timestamp,
+            quoteId: quote.id,
+          });
+        }
+      } else {
+        // If payment verification failed (e.g. unindexed/propagating tx, amount mismatch),
+        // release the in-memory/Redis claim so retry succeeds once the tx confirms on ledger.
+        await this.replayProtection.release(txHash);
+        this.metrics.safe(() =>
+          this.metrics.paymentVerificationFailed.inc({
+            reason: (verification.failureReason || 'unknown').slice(0, 64),
+          }),
+        );
       }
-    } else {
-      this.metrics.safe(() =>
-        this.metrics.paymentVerificationFailed.inc({
-          reason: (verification.failureReason || 'unknown').slice(0, 64),
-        }),
-      );
-    }
 
-    return verification;
+      return verification;
+    } catch (err) {
+      // If Horizon/RPC threw (e.g. network timeout or service outage), release the
+      // claim so the caller can retry rather than being falsely rejected as a replay.
+      await this.replayProtection.release(txHash);
+      throw err;
+    }
   }
 
   /**

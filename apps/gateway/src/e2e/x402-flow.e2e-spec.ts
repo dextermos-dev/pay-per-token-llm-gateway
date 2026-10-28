@@ -194,14 +194,25 @@ jest.mock('@x402/database', () => ({
         mockPaymentStore = mockPaymentStore.map((p) => {
           let matches = false;
           if (where.quoteId !== undefined) {
-            matches =
-              p.quoteId === where.quoteId && (where.txHash === null || where.txHash === undefined);
+            const matchesTx =
+              where.txHash === null
+                ? p.txHash === null || p.txHash === undefined
+                : where.txHash === undefined
+                  ? true
+                  : p.txHash === where.txHash;
+            matches = p.quoteId === where.quoteId && matchesTx;
           } else if (where.txHash !== undefined) {
             matches =
               p.txHash === where.txHash &&
               (where.status === undefined || p.status === where.status);
           }
           if (matches) {
+            if (
+              data.txHash &&
+              mockPaymentStore.some((other) => other.id !== p.id && other.txHash === data.txHash)
+            ) {
+              throw new Error('Unique constraint failed on the fields: (`txHash`)');
+            }
             updated++;
             return { ...p, ...data };
           }
@@ -318,6 +329,7 @@ jest.mock('ioredis', () => ({
     eval: jest.fn().mockResolvedValue(1),
     exists: jest.fn().mockResolvedValue(0),
     set: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
     on: jest.fn(),
     connect: jest.fn(),
     ping: jest.fn().mockResolvedValue('PONG'),
@@ -326,11 +338,24 @@ jest.mock('ioredis', () => ({
     eval: jest.fn().mockResolvedValue(1),
     exists: jest.fn().mockResolvedValue(0),
     set: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
     on: jest.fn(),
     connect: jest.fn(),
     ping: jest.fn().mockResolvedValue('PONG'),
   })),
 }));
+
+function createMockRedis() {
+  return {
+    eval: jest.fn().mockResolvedValue(1),
+    exists: jest.fn().mockResolvedValue(0),
+    set: jest.fn().mockResolvedValue('OK'),
+    del: jest.fn().mockResolvedValue(1),
+    on: jest.fn(),
+    connect: jest.fn(),
+    ping: jest.fn().mockResolvedValue('PONG'),
+  };
+}
 
 // ── Constants ──────────────────────────────────
 
@@ -424,14 +449,7 @@ describe('x402 Gateway E2E — Core Flow', () => {
     global.fetch = createHorizonAndLLMFetch() as any;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
@@ -795,6 +813,86 @@ describe('x402 Gateway E2E — Core Flow', () => {
     expect(res.body.message).toMatch(/already been used/i);
   });
 
+  it('rejects concurrent submission of the same payment hash (race condition defense)', async () => {
+    const concurrentHash = 'c' + '2'.repeat(63);
+
+    // Initial 402 to register a quote
+    await request(app.getHttpServer())
+      .post('/api/v1/chat/completions')
+      .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Init quote' }] })
+      .expect(402);
+
+    // Two requests submit the exact same payment proof concurrently
+    const [res1, res2] = await Promise.all([
+      request(app.getHttpServer())
+        .post('/api/v1/chat/completions')
+        .set('X-Payment-Hash', concurrentHash)
+        .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Race 1' }] }),
+      request(app.getHttpServer())
+        .post('/api/v1/chat/completions')
+        .set('X-Payment-Hash', concurrentHash)
+        .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Race 2' }] }),
+    ]);
+
+    const statuses = [res1.status, res2.status].sort();
+    expect(statuses).toEqual([200, 402]);
+    const rejected = res1.status === 402 ? res1 : res2;
+    expect(rejected.body.message).toMatch(/already been used/i);
+  });
+
+  it('allows retry when on-chain payment verification initially fails then confirms', async () => {
+    const unconfirmedHash = 'd' + '3'.repeat(63);
+    const origFetch = global.fetch;
+    let horizonFound = false;
+
+    // Simulate Horizon: 404 on first call (propagating), 200 once confirmed
+    global.fetch = jest.fn().mockImplementation(async (url: string) => {
+      const u = String(url);
+      if (u.includes('/transactions/' + unconfirmedHash) && !u.includes('/operations')) {
+        if (!horizonFound) {
+          return { ok: false, status: 404, json: async () => ({}) };
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            id: unconfirmedHash,
+            successful: true,
+            source_account: PAYER,
+            ledger: 12345,
+            created_at: new Date().toISOString(),
+          }),
+        };
+      }
+      return origFetch(url);
+    });
+
+    try {
+      // First attempt: tx is not on Horizon yet
+      const failRes = await request(app.getHttpServer())
+        .post('/api/v1/chat/completions')
+        .set('X-Payment-Hash', unconfirmedHash)
+        .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Pending tx' }] })
+        .expect(402);
+
+      expect(failRes.body.message).toMatch(/not found on chain/i);
+
+      // Transaction confirms on Horizon
+      horizonFound = true;
+
+      // Second attempt: must NOT be blocked by replay protection and must succeed with 200
+      const okRes = await request(app.getHttpServer())
+        .post('/api/v1/chat/completions')
+        .set('X-Payment-Hash', unconfirmedHash)
+        .send({ model: 'gpt-4', messages: [{ role: 'user', content: 'Confirmed tx' }] })
+        .expect(200);
+
+      expect(okRes.body.choices[0].message.content).toContain('Hello from x402 gateway');
+    } finally {
+      global.fetch = origFetch;
+    }
+  });
+
   it('returns SSE stream for streaming requests', async () => {
     const streamHash = 'e' + 'b'.repeat(63);
     const orig = global.fetch;
@@ -888,14 +986,7 @@ describe('x402 Gateway E2E — Per-Token Metered Pricing', () => {
     global.fetch = createHorizonAndLLMFetch() as any;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
@@ -1152,14 +1243,7 @@ describe('x402 Gateway E2E — Underpayment Debt Gate', () => {
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
@@ -1324,14 +1408,7 @@ describe('x402 Gateway E2E — Cross-Route Replay Protection', () => {
     global.fetch = createHorizonAndLLMFetch() as any;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
@@ -1420,14 +1497,7 @@ describe('x402 Gateway E2E — Analytics Events', () => {
     global.fetch = createHorizonAndLLMFetch() as any;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
@@ -1506,14 +1576,7 @@ describe('x402 Gateway E2E — Webhook Notifications', () => {
     global.fetch = createHorizonAndLLMFetch() as any;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
@@ -1606,6 +1669,7 @@ describe('x402 Gateway E2E — Rate Limiting', () => {
         eval: jest.fn().mockResolvedValue(0),
         exists: jest.fn().mockResolvedValue(0),
         set: jest.fn().mockResolvedValue('OK'),
+        del: jest.fn().mockResolvedValue(1),
         on: jest.fn(),
         connect: jest.fn(),
         ping: jest.fn().mockResolvedValue('PONG'),
@@ -1660,14 +1724,7 @@ describe('x402 Gateway E2E — Payment Receipts', () => {
     global.fetch = createHorizonAndLLMFetch() as any;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
@@ -1760,14 +1817,7 @@ describe('x402 Gateway E2E — Admin Endpoint Security', () => {
     global.fetch = createHorizonAndLLMFetch() as any;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
@@ -1805,15 +1855,7 @@ describe('x402 Gateway E2E — Upstream LLM Failure & Recovery', () => {
     global.fetch = createHorizonAndLLMFetch() as any;
     const moduleFixture: TestingModule = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider('REDIS')
-      .useValue({
-        eval: jest.fn().mockResolvedValue(1),
-        exists: jest.fn().mockResolvedValue(0),
-        set: jest.fn().mockResolvedValue('OK'),
-        del: jest.fn().mockResolvedValue(1),
-        on: jest.fn(),
-        connect: jest.fn(),
-        ping: jest.fn().mockResolvedValue('PONG'),
-      })
+      .useValue(createMockRedis())
       .overrideProvider('PRISMA')
       .useValue(mockPrisma)
       .compile();
