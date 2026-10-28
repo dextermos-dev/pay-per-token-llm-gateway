@@ -15,31 +15,6 @@
 
 # ── npm: no patched release exists (dev/build tooling only) ──────────────────
 
-# image-size — infinite loops in the JXL/HEIF parsers. osv.dev reports no fixed
-# version for either advisory (vulnerable through the latest 2.0.2). Reached via
-# `less@4.1.3` under the `@nx/vite` → vite / `@nx/webpack` chains; this repo
-# compiles no LESS and never calls image-size at runtime.
-[[IgnoredVulns]]
-id = "GHSA-5p2g-fcmc-qvqq"
-ignoreUntil = 2026-12-31
-reason = "image-size has no patched release; dev/build tooling only (less via @nx/vite, @nx/webpack)"
-
-# image-size — same package, ICNS parser infinite loop; also no fixed version.
-[[IgnoredVulns]]
-id = "GHSA-w3rx-r6r6-pgpr"
-ignoreUntil = 2026-12-31
-reason = "image-size has no patched release; dev/build tooling only (less via @nx/vite, @nx/webpack)"
-
-# adm-zip — extraction follows destination symlinks. No fixed version (0.6.0 is
-# both the latest release and the fixed floor for the *other* adm-zip advisory,
-# GHSA-xcpc-8h2w-3j85). Reached only through
-# @module-federation/dts-plugin → @nx/module-federation → @nx/next, which runs
-# at build time against a fixed local directory.
-[[IgnoredVulns]]
-id = "GHSA-vwc7-r8mq-g2x9"
-ignoreUntil = 2026-12-31
-reason = "adm-zip has no patched release; build-time tooling only (@module-federation via @nx/next)"
-
 # deepmerge — prototype pollution via __proto__. No fixed release exists.
 # Dev/build-tooling only (used by @rollup/plugin-node-resolve, @svgr/plugin-svgo,
 # fork-ts-checker-webpack-plugin, and jest-config).

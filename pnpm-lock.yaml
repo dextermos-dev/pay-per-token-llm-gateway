@@ -45,8 +45,7 @@ overrides:
   compression: '>=1.8.2'
   launch-editor: '>=2.14.2'
   nx: '>=22.7.10 <23'
-  postcss-selector-parser@6: '>=6.1.5'
-  postcss-selector-parser@7: '>=7.1.6'
+  postcss-selector-parser: '>=7.1.7'
 
 importers:
   .:
@@ -10910,13 +10909,6 @@ packages:
     peerDependencies:
       postcss: '>=8.5.23'
 
-  postcss-selector-parser@7.1.5:
-    resolution:
-      {
-        integrity: sha512-KvvtD7SrlBP7dlgkBghEE3r84CABm5SmV2aNcG4oCA+qDnJ/tvKonFVvwWAyyWUEwxuNawdfEAZKP9zM3oZ2Uw==,
-      }
-    engines: { node: '>=4' }
-
   postcss-selector-parser@7.1.7:
     resolution:
       {
@@ -20845,7 +20837,7 @@ snapshots:
   postcss-nested@6.2.0(postcss@8.5.26):
     dependencies:
       postcss: 8.5.26
-      postcss-selector-parser: 7.1.5
+      postcss-selector-parser: 7.1.7
 
   postcss-normalize-charset@7.0.3(postcss@8.5.26):
     dependencies:
@@ -20908,11 +20900,6 @@ snapshots:
     dependencies:
       postcss: 8.5.26
       postcss-value-parser: 4.2.0
-
-  postcss-selector-parser@7.1.5:
-    dependencies:
-      cssesc: 3.0.0
-      util-deprecate: 1.0.2
 
   postcss-selector-parser@7.1.7:
     dependencies:
@@ -21808,7 +21795,7 @@ snapshots:
       postcss-js: 4.1.0(postcss@8.5.26)
       postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.26)(yaml@2.9.0)
       postcss-nested: 6.2.0(postcss@8.5.26)
-      postcss-selector-parser: 7.1.5
+      postcss-selector-parser: 7.1.7
       resolve: 1.22.12
       sucrase: 3.35.1
     transitivePeerDependencies:
