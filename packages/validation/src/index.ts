@@ -96,7 +96,7 @@ export const providerSchema = z.object({
   // SSRF-validated (HTTPS + public IP) by the gateway before persisting.
   webhookUrl: z.union([z.string().url(), z.literal('')]).optional(),
   webhookSecret: z.string().min(16).optional(),
-  metadata: z.record(z.string()).optional(),
+  metadata: z.record(z.string(), z.string()).optional(),
 });
 
 /** Create-provider payload (ownership always comes from the auth wallet). */

@@ -39,7 +39,7 @@ export class X402Controller {
   async verifyPayment(@Body() body: { txHash: string; quoteId: string }) {
     const parsed = verifyPaymentSchema.safeParse(body);
     if (!parsed.success) {
-      throw new BadRequestException(parsed.error.errors);
+      throw new BadRequestException(parsed.error.issues);
     }
 
     const { txHash, quoteId } = parsed.data;

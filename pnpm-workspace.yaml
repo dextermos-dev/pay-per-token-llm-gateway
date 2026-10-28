@@ -77,6 +77,13 @@ overrides:
   file-type: '>=21.3.2'
   sharp: '>=0.35.5 <1'
   source-map-js: '>=1.2.2 <2'
+  handlebars: '>=4.7.10 <5'
+  shell-quote: '>=1.11.0 <2'
+  undici: '>=7.30.1 <8'
+  vite: '>=8.2.4 <9'
+  vitest: '>=4.1.12 <5'
+  '@vitest/mocker': '>=4.1.12 <5'
+  zod: '>=4.6.6'
   # Dev/build-tooling advisories with installable patched versions. All are
   # build-time only (webpack/eslint/nx chains) and never shipped to runtime.
   # minimatch: advisory only covers the 9.x line (<9.0.7), so bump it but
@@ -99,7 +106,9 @@ overrides:
   # unbounded intermediate arrays). Scoped override replaces only that pin — a
   # global override would force minimatch/glob's ^2.x consumers onto the 5.x
   # API and break jest/eslint. Build-time tooling only.
-  'brace-expansion@5.0.8': '5.0.9'
+  'brace-expansion@1': '1.1.21'
+  'brace-expansion@2': '2.1.7'
+  'brace-expansion@5.0.8': '5.0.12'
   serialize-javascript: '>=7.0.5'
   fast-uri: '>=3.1.6'
-  adm-zip: '>=0.6.0'
+  adm-zip: '>=0.6.1 <1'
