@@ -230,15 +230,17 @@ Click **Deploy**. Vercel will install the monorepo dependencies (via
 `pnpm install --frozen-lockfile`), build the dashboard with `next build`, and
 serve the `.next` output.
 
-To deploy from CI instead of Vercel's Git integration — the same deploy on every
-push to `main`, independent of whether the Git integration is healthy — set the
-three repository secrets the `Deploy Dashboard to Vercel` workflow expects
-(`VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`; see below) under
-_Settings → Secrets and variables → Actions_. That workflow runs the Vercel CLI
-at the **repository root** so the upload keeps `pnpm-lock.yaml` and
-`pnpm-workspace.yaml` intact — Root Directory (`apps/dashboard`) is applied by
-Vercel server-side at build time — and it smoke-checks the live deployment
-afterwards, so a deploy that publishes a broken bundle still fails.
+Vercel deploys natively on every push to `main` via its official GitHub App Git
+integration (see §2.1–§2.3). The GitHub Actions CI pipeline validates the dashboard
+build on every pull request and push to `main` via the `vercel-build-check` job
+in `.github/workflows/ci.yml`.
+
+To deploy manually from your workstation or local CLI:
+
+```bash
+# From repository root:
+pnpm dlx vercel deploy --prod
+```
 
 ### 2.5 When pushes stop deploying: a stale Git credential
 
