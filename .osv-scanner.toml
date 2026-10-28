@@ -40,6 +40,14 @@ id = "GHSA-vwc7-r8mq-g2x9"
 ignoreUntil = 2026-12-31
 reason = "adm-zip has no patched release; build-time tooling only (@module-federation via @nx/next)"
 
+# deepmerge — prototype pollution via __proto__. No fixed release exists.
+# Dev/build-tooling only (used by @rollup/plugin-node-resolve, @svgr/plugin-svgo,
+# fork-ts-checker-webpack-plugin, and jest-config).
+[[IgnoredVulns]]
+id = "GHSA-gcqx-w48m-w2h4"
+ignoreUntil = 2026-12-31
+reason = "deepmerge has no patched release; dev/build tooling only (webpack/rollup/jest plugins)"
+
 # ── Rust: pinned by the Soroban SDK the contracts build against ──────────────
 
 # soroban-env-host / stellar-xdr are pinned by `soroban-sdk = "22"`. The fixes

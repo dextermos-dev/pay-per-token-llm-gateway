@@ -52,7 +52,7 @@ overrides:
   express: '>=5.2.1'
   ws: '>=8.21.0'
   body-parser: '>=1.20.7 <2'
-  qs: '>=6.16.0'
+  qs: '>=6.16.1'
   # uuid <12 keeps the CommonJS build (12+ is ESM-only and would break the
   # CJS NestJS integration); 11.1.1 is the advisory's patched floor.
   uuid: '>=11.1.1 <12'
@@ -109,6 +109,11 @@ overrides:
   'brace-expansion@1': '1.1.21'
   'brace-expansion@2': '2.1.7'
   'brace-expansion@5.0.8': '5.0.12'
-  serialize-javascript: '>=7.0.5'
-  fast-uri: '>=3.1.6'
+  serialize-javascript: '>=7.1.3'
+  fast-uri: '>=4.2.3'
   adm-zip: '>=0.6.1 <1'
+  compression: '>=1.8.2'
+  launch-editor: '>=2.14.2'
+  nx: '>=22.7.10 <23'
+  'postcss-selector-parser@6': '>=6.1.5'
+  'postcss-selector-parser@7': '>=7.1.6'
