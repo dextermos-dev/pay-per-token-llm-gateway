@@ -2,11 +2,15 @@
 #
 # The `osv-scanner` CI job fails on any finding that is NOT listed here, so a
 # new advisory breaks the build instead of quietly adding another open alert to
-# the Security tab. Everything listed below is:
+# the Security tab. Everything listed below is either:
 #
 #   (a) an advisory with no fixed release at any version, reachable only from
-#       dev/build tooling that never ships to the gateway or dashboard runtime.
+#       dev/build tooling that never ships to the gateway or dashboard runtime,
+#       or
+#   (b) pinned as transitive dependencies in the Soroban SDK 26 stack.
 #
+# `ignoreUntil` is deliberate: when an entry expires the scan starts failing
+# again, so the exception gets re-reviewed instead of aging out silently.
 # Rationale and the full ledger live in MAINNET_READINESS.md §7.
 
 # ── npm: no patched release exists (dev/build tooling only) ──────────────────
@@ -18,3 +22,23 @@
 id = "GHSA-gcqx-w48m-w2h4"
 ignoreUntil = 2026-12-31
 reason = "deepmerge has no patched release; dev/build tooling only (webpack/rollup/jest plugins)"
+
+# ── Rust: transitive dependencies retained in Soroban SDK 26 ─────────────────
+
+# paste is unmaintained with no patched release; transitive via soroban-env-host
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+ignoreUntil = 2026-12-31
+reason = "paste is unmaintained with no patched release; transitive via soroban-env-host"
+
+# block-buffer 0.10.4 is transitively pulled by soroban-env-common / sha2
+[[IgnoredVulns]]
+id = "GHSA-qwgh-2vcv-g2f7"
+ignoreUntil = 2026-12-31
+reason = "block-buffer 0.10.4 has no patched release; transitive via soroban-env-host crypto stack"
+
+# crypto-bigint 0.5.5 is pinned transitively by p256/k256 in soroban-env-host
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0387"
+ignoreUntil = 2026-12-31
+reason = "crypto-bigint 0.5.5 pinned transitively by p256/k256 in soroban-env-host"
